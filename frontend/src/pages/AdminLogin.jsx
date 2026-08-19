@@ -1,2 +1,72 @@
-import { Code2, LockKeyhole } from 'lucide-react'; import { useState } from 'react'; import { Link, useLocation, useNavigate } from 'react-router-dom'; import Input from '../components/common/Input'; import Button from '../components/common/Button'; import { useAuth } from '../context/AuthContext';
-export default function AdminLogin() { const { login, loading } = useAuth(); const navigate = useNavigate(); const location = useLocation(); const [form, setForm] = useState({ identity: '', password: '' }); const [error, setError] = useState(''); const submit = async event => { event.preventDefault(); setError(''); if (!form.identity || !form.password) return setError('Enter your email/username and password.'); try { await login(form); navigate(location.state?.from?.pathname || '/admin/dashboard', { replace: true }); } catch (loginError) { setError(loginError.response?.data?.detail || loginError.message); } }; return <main className="auth-page"><Link className="brand auth-brand" to="/"><span><Code2 size={21} /></span>TCT <b>LAB</b></Link><section className="login-card"><div className="login-icon"><LockKeyhole /></div><p className="eyebrow">Restricted area</p><h1>Admin login</h1><p>Sign in to manage your lab resources.</p><form onSubmit={submit}><Input label="Email or username" name="identity" autoComplete="username" value={form.identity} onChange={e => setForm({ ...form, identity: e.target.value })} /><Input label="Password" name="password" type="password" autoComplete="current-password" value={form.password} onChange={e => setForm({ ...form, password: e.target.value })} />{error && <p className="form-error">{error}</p>}<Button type="submit" disabled={loading}>{loading ? 'Signing in...' : 'Login securely'}</Button></form><Link className="forgot" to="/admin/reset-password">Forgot password?</Link><small className="login-note">Authentication is handled by the backend.</small></section></main>; }
+import { Code2, LockKeyhole } from "lucide-react";
+import { useState } from "react";
+import { Link, useLocation, useNavigate } from "react-router-dom";
+import Input from "../components/common/Input";
+import Button from "../components/common/Button";
+import { useAuth } from "../context/AuthContext";
+export default function AdminLogin() {
+  const { login, loading } = useAuth();
+  const navigate = useNavigate();
+  const location = useLocation();
+  const [form, setForm] = useState({ identity: "", password: "" });
+  const [error, setError] = useState("");
+  const submit = async (event) => {
+    event.preventDefault();
+    setError("");
+    if (!form.identity || !form.password)
+      return setError("Enter your email/username and password.");
+    try {
+      await login(form);
+      navigate(location.state?.from?.pathname || "/admin/dashboard", {
+        replace: true,
+      });
+    } catch (loginError) {
+      setError(loginError.response?.data?.detail || loginError.message);
+    }
+  };
+  return (
+    <main className="auth-page">
+      <Link className="brand auth-brand" to="/">
+        <span>
+          <Code2 size={21} />
+        </span>
+        TCT <b>LAB</b>
+      </Link>
+      <section className="login-card">
+        <div className="login-icon">
+          <LockKeyhole />
+        </div>
+        <p className="eyebrow">Restricted area</p>
+        <h1>Admin login</h1>
+        <p>Sign in to manage your lab resources.</p>
+        <form onSubmit={submit}>
+          <Input
+            label="Email or username"
+            name="identity"
+            autoComplete="username"
+            value={form.identity}
+            onChange={(e) => setForm({ ...form, identity: e.target.value })}
+          />
+          <Input
+            label="Password"
+            name="password"
+            type="password"
+            autoComplete="current-password"
+            value={form.password}
+            onChange={(e) => setForm({ ...form, password: e.target.value })}
+          />
+          {error && <p className="form-error">{error}</p>}
+          <Button type="submit" disabled={loading}>
+            {loading ? "Signing in..." : "Login securely"}
+          </Button>
+        </form>
+        <Link className="forgot" to="/admin/reset-password">
+          Forgot password?
+        </Link>
+        <small className="login-note">
+          Authentication is handled by the backend.
+        </small>
+      </section>
+    </main>
+  );
+}

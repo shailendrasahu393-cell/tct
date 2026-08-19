@@ -1,2 +1,47 @@
-import { useState } from 'react'; import AdminShell from '../components/layout/AdminShell'; import ResetPasswordForm from '../components/admin/ResetPasswordForm'; import { adminService } from '../services/adminService'; import { useAuth } from '../context/AuthContext';
-export default function ResetPassword() { const { currentUser } = useAuth(); const [done, setDone] = useState(false); const [error, setError] = useState(''); const submit = async form => { setError(''); try { await adminService.resetPassword(form, currentUser.id); setDone(true); } catch (requestError) { setError(requestError.response?.data?.detail || requestError.message); } }; return <AdminShell title="Reset Password"><section className="form-page"><div><p className="eyebrow">Account security</p><h2>Update your password</h2><p>Use a unique password you do not reuse elsewhere.</p></div><div className="form-card">{done ? <div className="success-message"><h3>Password updated</h3><p>Your new hashed password is active immediately.</p></div> : <><ResetPasswordForm onSubmit={submit} />{error && <p className="form-error">{error}</p>}<p className="form-help">Minimum 8 characters, with at least one uppercase letter, lowercase letter, and number.</p></>}</div></section></AdminShell>; }
+import { useState } from "react";
+import AdminShell from "../components/layout/AdminShell";
+import ResetPasswordForm from "../components/admin/ResetPasswordForm";
+import { adminService } from "../services/adminService";
+import { useAuth } from "../context/AuthContext";
+export default function ResetPassword() {
+  const { currentUser } = useAuth();
+  const [done, setDone] = useState(false);
+  const [error, setError] = useState("");
+  const submit = async (form) => {
+    setError("");
+    try {
+      await adminService.resetPassword(form, currentUser.id);
+      setDone(true);
+    } catch (requestError) {
+      setError(requestError.response?.data?.detail || requestError.message);
+    }
+  };
+  return (
+    <AdminShell title="Reset Password">
+      <section className="form-page">
+        <div>
+          <p className="eyebrow">Account security</p>
+          <h2>Update your password</h2>
+          <p>Use a unique password you do not reuse elsewhere.</p>
+        </div>
+        <div className="form-card">
+          {done ? (
+            <div className="success-message">
+              <h3>Password updated</h3>
+              <p>Your new hashed password is active immediately.</p>
+            </div>
+          ) : (
+            <>
+              <ResetPasswordForm onSubmit={submit} />
+              {error && <p className="form-error">{error}</p>}
+              <p className="form-help">
+                Minimum 8 characters, with at least one uppercase letter,
+                lowercase letter, and number.
+              </p>
+            </>
+          )}
+        </div>
+      </section>
+    </AdminShell>
+  );
+}

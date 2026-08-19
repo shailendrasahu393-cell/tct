@@ -1,8 +1,8 @@
-import api from './api';
+import api from "./api";
 
 export const adminService = {
   async createAdmin(payload) {
-    const { data } = await api.post('/admin', {
+    const { data } = await api.post("/admin", {
       username: payload.email,
       name: payload.name,
       password: payload.password,
@@ -16,5 +16,5 @@ export const adminService = {
       old_password: payload.current,
       new_password: payload.password,
     });
-  }
+  },
 };

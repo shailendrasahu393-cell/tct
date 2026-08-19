@@ -1,3 +1,127 @@
-import { ArrowDown, ArrowUpRight, CheckCircle2, Layers3, ShieldCheck } from 'lucide-react';
-import { useEffect, useState } from 'react'; import Navbar from '../components/layout/Navbar'; import Footer from '../components/layout/Footer'; import LabGrid from '../components/lab/LabGrid'; import LoadingSpinner from '../components/common/LoadingSpinner'; import ErrorMessage from '../components/common/ErrorMessage'; import { labService } from '../services/labService';
-export default function Home() { const [labs, setLabs] = useState([]), [status, setStatus] = useState('loading'); const load = () => { setStatus('loading'); labService.getLabs().then(setLabs).then(() => setStatus('done')).catch(() => setStatus('error')); }; useEffect(load, []); return <><Navbar /><main><section className="hero"><div className="hero__copy"><p className="eyebrow"><i /> A dedicated space for every class</p><h1>Learning, clearly <em>organized.</em></h1><p>Choose your faculty lab to find the right contests, daily exercises, and coding problems — without the clutter.</p><a href="#labs" className="button button--primary">Explore labs <ArrowDown size={17} /></a><div className="hero__facts"><span><b>Focused</b> lab resources</span><span><b>Private</b> admin spaces</span></div></div><div className="hero__art"><div className="hero-orbit orbit-a" /><div className="hero-orbit orbit-b" /><div className="hero-card"><span className="hero-card__mark"><Layers3 /></span><p>Your learning space</p><h3>One portal.<br />Every lab.</h3><div><i /><i /><i /></div></div><span className="art-label label-a">Daily Lab</span><span className="art-label label-b">Contests</span></div></section><section id="labs" className="labs-section"><div className="section-intro"><div><p className="eyebrow">Find your space</p><h2>Choose your lab</h2><p>Select your faculty or class to continue with the resources made for you.</p></div><span>{labs.length || '…'} active labs <ArrowUpRight size={16} /></span></div>{status === 'loading' && <LoadingSpinner label="Loading available labs..." />}{status === 'error' && <ErrorMessage title="Unable to load labs." onRetry={load} />}{status === 'done' && <LabGrid labs={labs} />}</section><section id="about" className="values"><div><span><CheckCircle2 /></span><h3>Organized learning</h3><p>Every class sees only the material its faculty has assigned.</p></div><div><span><ShieldCheck /></span><h3>Admin-controlled</h3><p>Designed for secure backend access and clear ownership.</p></div><div><span><Layers3 /></span><h3>Built to grow</h3><p>Add labs as your institution grows — the layout adapts.</p></div></section></main><Footer /></>; }
+import {
+  ArrowDown,
+  ArrowUpRight,
+  CheckCircle2,
+  Layers3,
+  ShieldCheck,
+} from "lucide-react";
+import { useEffect, useState } from "react";
+import Navbar from "../components/layout/Navbar";
+import Footer from "../components/layout/Footer";
+import LabGrid from "../components/lab/LabGrid";
+import LoadingSpinner from "../components/common/LoadingSpinner";
+import ErrorMessage from "../components/common/ErrorMessage";
+import { labService } from "../services/labService";
+export default function Home() {
+  const [labs, setLabs] = useState([]),
+    [status, setStatus] = useState("loading");
+  const load = () => {
+    setStatus("loading");
+    labService
+      .getLabs()
+      .then(setLabs)
+      .then(() => setStatus("done"))
+      .catch(() => setStatus("error"));
+  };
+  useEffect(load, []);
+  return (
+    <>
+      <Navbar />
+      <main>
+        <section className="hero">
+          <div className="hero__copy">
+            <p className="eyebrow">
+              <i /> A dedicated space for every class
+            </p>
+            <h1>
+              Learning, clearly <em>organized.</em>
+            </h1>
+            <p>
+              Choose your faculty lab to find the right contests, daily
+              exercises, and coding problems — without the clutter.
+            </p>
+            <a href="#labs" className="button button--primary">
+              Explore labs <ArrowDown size={17} />
+            </a>
+            <div className="hero__facts">
+              <span>
+                <b>Focused</b> lab resources
+              </span>
+              <span>
+                <b>Private</b> admin spaces
+              </span>
+            </div>
+          </div>
+          <div className="hero__art">
+            <div className="hero-orbit orbit-a" />
+            <div className="hero-orbit orbit-b" />
+            <div className="hero-card">
+              <span className="hero-card__mark">
+                <Layers3 />
+              </span>
+              <p>Your learning space</p>
+              <h3>
+                One portal.
+                <br />
+                Every lab.
+              </h3>
+              <div>
+                <i />
+                <i />
+                <i />
+              </div>
+            </div>
+            <span className="art-label label-a">Daily Lab</span>
+            <span className="art-label label-b">Contests</span>
+          </div>
+        </section>
+        <section id="labs" className="labs-section">
+          <div className="section-intro">
+            <div>
+              <p className="eyebrow">Find your space</p>
+              <h2>Choose your lab</h2>
+              <p>
+                Select your faculty or class to continue with the resources made
+                for you.
+              </p>
+            </div>
+            <span>
+              {labs.length || "…"} active labs <ArrowUpRight size={16} />
+            </span>
+          </div>
+          {status === "loading" && (
+            <LoadingSpinner label="Loading available labs..." />
+          )}
+          {status === "error" && (
+            <ErrorMessage title="Unable to load labs." onRetry={load} />
+          )}
+          {status === "done" && <LabGrid labs={labs} />}
+        </section>
+        <section id="about" className="values">
+          <div>
+            <span>
+              <CheckCircle2 />
+            </span>
+            <h3>Organized learning</h3>
+            <p>Every class sees only the material its faculty has assigned.</p>
+          </div>
+          <div>
+            <span>
+              <ShieldCheck />
+            </span>
+            <h3>Admin-controlled</h3>
+            <p>Designed for secure backend access and clear ownership.</p>
+          </div>
+          <div>
+            <span>
+              <Layers3 />
+            </span>
+            <h3>Built to grow</h3>
+            <p>Add labs as your institution grows — the layout adapts.</p>
+          </div>
+        </section>
+      </main>
+      <Footer />
+    </>
+  );
+}

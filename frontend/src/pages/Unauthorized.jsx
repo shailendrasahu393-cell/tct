@@ -1,1 +1,15 @@
-import { ShieldAlert } from 'lucide-react'; import { Link } from 'react-router-dom'; export default function Unauthorized() { return <main className="page-state"><ShieldAlert size={45} /><p className="eyebrow">403</p><h1>Access denied</h1><p>You don't have permission to access this page.</p><Link className="button button--primary" to="/admin/dashboard">Go to dashboard</Link></main>; }
+import { ShieldAlert } from "lucide-react";
+import { Link } from "react-router-dom";
+export default function Unauthorized() {
+  return (
+    <main className="page-state">
+      <ShieldAlert size={45} />
+      <p className="eyebrow">403</p>
+      <h1>Access denied</h1>
+      <p>You don't have permission to access this page.</p>
+      <Link className="button button--primary" to="/admin/dashboard">
+        Go to dashboard
+      </Link>
+    </main>
+  );
+}

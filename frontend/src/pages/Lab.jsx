@@ -1,2 +1,89 @@
-import { ArrowLeft, BookOpenCheck } from 'lucide-react'; import { Link, useParams } from 'react-router-dom'; import { useEffect, useState } from 'react'; import Navbar from '../components/layout/Navbar'; import Footer from '../components/layout/Footer'; import LinkSection from '../components/lab/LinkSection'; import LoadingSpinner from '../components/common/LoadingSpinner'; import { labService } from '../services/labService'; import { linkService } from '../services/linkService';
-export default function Lab() { const { labId } = useParams(); const [lab, setLab] = useState(undefined), [links, setLinks] = useState([]); useEffect(() => { Promise.all([labService.getLabById(labId), linkService.getLabLinks(labId)]).then(([foundLab, labLinks]) => { setLab(foundLab); setLinks(labLinks); }); }, [labId]); if (lab === undefined) return <><Navbar /><main className="page-state"><LoadingSpinner label="Loading lab resources..." /></main></>; if (!lab) return <><Navbar /><main className="page-state"><p className="eyebrow">404</p><h1>Lab not found</h1><p>The requested lab does not exist or may have moved.</p><Link className="button button--primary" to="/#labs">Back to labs</Link></main></>; return <><Navbar /><main><section className="lab-hero"><Link className="back-link" to="/#labs"><ArrowLeft size={16} /> All labs</Link><div><span className="lab-hero__icon"><BookOpenCheck /></span><p className="eyebrow">TCT Lab · {lab.className}</p><h1>{lab.name}</h1><p>{lab.description}</p></div></section><section className="resources"><div className="resources__intro"><p className="eyebrow">Your workspace</p><h2>Welcome to your TCT Lab</h2><p>Use these resources to practice, compete, and grow at your own pace.</p></div>{['Contest', 'Daily Lab', 'Single Problem'].map(category => <LinkSection key={category} title={category} links={links.filter(link => link.category === category)} />)}{!links.length && <div className="empty-state">No resources have been added to this lab yet.</div>}</section></main><Footer /></>; }
+import { ArrowLeft, BookOpenCheck } from "lucide-react";
+import { Link, useParams } from "react-router-dom";
+import { useEffect, useState } from "react";
+import Navbar from "../components/layout/Navbar";
+import Footer from "../components/layout/Footer";
+import LinkSection from "../components/lab/LinkSection";
+import LoadingSpinner from "../components/common/LoadingSpinner";
+import { labService } from "../services/labService";
+import { linkService } from "../services/linkService";
+export default function Lab() {
+  const { labId } = useParams();
+  const [lab, setLab] = useState(undefined),
+    [links, setLinks] = useState([]);
+  useEffect(() => {
+    Promise.all([
+      labService.getLabById(labId),
+      linkService.getLabLinks(labId),
+    ]).then(([foundLab, labLinks]) => {
+      setLab(foundLab);
+      setLinks(labLinks);
+    });
+  }, [labId]);
+  if (lab === undefined)
+    return (
+      <>
+        <Navbar />
+        <main className="page-state">
+          <LoadingSpinner label="Loading lab resources..." />
+        </main>
+      </>
+    );
+  if (!lab)
+    return (
+      <>
+        <Navbar />
+        <main className="page-state">
+          <p className="eyebrow">404</p>
+          <h1>Lab not found</h1>
+          <p>The requested lab does not exist or may have moved.</p>
+          <Link className="button button--primary" to="/#labs">
+            Back to labs
+          </Link>
+        </main>
+      </>
+    );
+  return (
+    <>
+      <Navbar />
+      <main>
+        <section className="lab-hero">
+          <Link className="back-link" to="/#labs">
+            <ArrowLeft size={16} /> All labs
+          </Link>
+          <div>
+            <span className="lab-hero__icon">
+              <BookOpenCheck />
+            </span>
+            <p className="eyebrow">TCT Lab · {lab.className}</p>
+            <h1>{lab.name}</h1>
+            <p>{lab.description}</p>
+          </div>
+        </section>
+        <section className="resources">
+          <div className="resources__intro">
+            <p className="eyebrow">Your workspace</p>
+            <h2>Welcome to your TCT Lab</h2>
+            <p>
+              Use these resources to practice, compete, and grow at your own
+              pace.
+            </p>
+          </div>
+          {["Contest", "Daily Lab", "Single Problem"].map((category) => (
+            <LinkSection
+              key={category}
+              title={category}
+              links={links.filter((link) => link.category === category)}
+            />
+          ))}
+          {!links.length && (
+            <div className="empty-state">
+              No resources have been added to this lab yet.
+            </div>
+          )}
+        </section>
+      </main>
+      <Footer />
+    </>
+  );
+}
