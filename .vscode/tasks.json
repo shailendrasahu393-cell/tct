@@ -1,0 +1,13 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"label": "Build frontend",
+			"type": "shell",
+			"command": "npm.cmd run build",
+			"options": { "cwd": "${workspaceFolder}/frontend" },
+			"isBackground": false,
+			"problemMatcher": []
+		}
+	]
+}

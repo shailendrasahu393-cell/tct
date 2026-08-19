@@ -1,0 +1,9 @@
+{
+  "name": "tct-lab-portal-v2",
+  "private": true,
+  "version": "2.0.0",
+  "type": "module",
+  "scripts": { "dev": "vite", "build": "vite build", "preview": "vite preview" },
+  "dependencies": { "@vitejs/plugin-react": "latest", "axios": "latest", "lucide-react": "latest", "react": "latest", "react-dom": "latest", "react-router-dom": "latest", "vite": "latest" },
+  "devDependencies": {}
+}
