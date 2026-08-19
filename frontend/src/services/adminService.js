@@ -17,4 +17,11 @@ export const adminService = {
       new_password: payload.password,
     });
   },
+  async getAdmins() {
+    const { data } = await api.get("/admin");
+    return data;
+  },
+  async deleteAdmin(username) {
+    await api.delete(`/admin/${encodeURIComponent(username)}`);
+  },
 };

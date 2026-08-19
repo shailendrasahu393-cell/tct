@@ -3,6 +3,8 @@ import {
   PlusCircle,
   List,
   UserPlus,
+  Building2,
+  ShieldCheck,
   KeyRound,
   LogOut,
   X,
@@ -33,11 +35,25 @@ export default function AdminSidebar({ open, onClose }) {
             {label}
           </NavLink>
         ))}
-        {currentUser?.role === "SUPER_ADMIN" && (
-          <NavLink to="/admin/add-admin" onClick={onClose}>
-            <UserPlus size={18} />
-            Add Admin
-          </NavLink>
+        {currentUser && (
+          <>
+            <NavLink to="/admin/manage-labs" onClick={onClose}>
+              <Building2 size={18} />
+              Manage Labs
+            </NavLink>
+            {currentUser.role === "SUPER_ADMIN" && (
+              <NavLink to="/admin/add-admin" onClick={onClose}>
+                <UserPlus size={18} />
+                Add Admin & Lab
+              </NavLink>
+            )}
+            {currentUser.role === "SUPER_ADMIN" && (
+              <NavLink to="/admin/manage-admins" onClick={onClose}>
+                <ShieldCheck size={18} />
+                Manage Admins
+              </NavLink>
+            )}
+          </>
         )}
       </nav>
       <button className="sidebar__logout" onClick={logout}>

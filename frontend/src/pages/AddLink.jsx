@@ -8,10 +8,21 @@ export default function AddLink() {
   const { currentUser } = useAuth();
   const navigate = useNavigate();
   const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
   const submit = async (form) => {
     setSaving(true);
-    await linkService.createLink({ ...form, labId: currentUser.labId });
-    navigate("/admin/manage-links");
+    setError("");
+    try {
+      await linkService.createLink({ ...form, labId: currentUser.labId });
+      navigate("/admin/manage-links");
+    } catch (requestError) {
+      setError(
+        requestError.response?.data?.detail ||
+          "Link could not be added. Please log in again and retry.",
+      );
+    } finally {
+      setSaving(false);
+    }
   };
   return (
     <AdminShell title="Add Link">
@@ -26,6 +37,7 @@ export default function AddLink() {
         </div>
         <div className="form-card">
           <AddLinkForm onSubmit={submit} />
+          {error && <p className="form-error">{error}</p>}
           {saving && <p className="saving-note">Saving link…</p>}
         </div>
       </section>

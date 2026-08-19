@@ -1,7 +1,7 @@
 import os
 import secrets
 from datetime import datetime, timedelta, timezone
-from fastapi import Cookie, Depends, FastAPI, HTTPException, Response
+from fastapi import Cookie, Depends, FastAPI, HTTPException, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 import uvicorn
 from pydantic import BaseModel
@@ -39,6 +39,9 @@ BOOTSTRAP_USERNAME = os.getenv("TCT_BOOTSTRAP_USERNAME", "@vivekshukla26")
 BOOTSTRAP_PASSWORD_HASH = os.getenv("TCT_BOOTSTRAP_PASSWORD_HASH")
 session_serializer = URLSafeTimedSerializer(SESSION_SECRET)
 SESSION_MAX_AGE = int(os.getenv("TCT_SESSION_MAX_AGE", str(60 * 60 * 8)))
+LOGIN_ATTEMPT_WINDOW = 60
+LOGIN_ATTEMPT_LIMIT = 5
+login_attempts = {}
 
 # Password hashing
 password_hash = PasswordHash.recommended()
@@ -51,6 +54,7 @@ password_hash = PasswordHash.recommended()
 def get_connection():
     connection = sqlite3.connect(DATABASE)
     connection.row_factory = sqlite3.Row
+    connection.execute("PRAGMA foreign_keys = ON")
     return connection
 
 
@@ -253,7 +257,11 @@ def require_super_admin(user=Depends(get_authenticated_user)):
 async def get_labs():
     connection = get_connection()
     rows = connection.execute(
-        "SELECT id, name, faculty_name, class_name, description, color FROM labs ORDER BY id"
+        """
+        SELECT id, name, faculty_name, class_name, description, color
+        FROM labs
+        ORDER BY CAST(SUBSTR(id, INSTR(id, '-') + 1) AS INTEGER) DESC, id DESC
+        """
     ).fetchall()
     connection.close()
     return [
@@ -289,6 +297,33 @@ async def get_lab(lab_id: str):
     }
 
 
+@app.delete("/labs/{lab_id}")
+async def delete_lab(lab_id: str, user=Depends(require_admin)):
+    if lab_id == "lab-001":
+        raise HTTPException(status_code=400, detail="The bootstrap lab cannot be deleted.")
+
+    connection = get_connection()
+    try:
+        lab = connection.execute("SELECT id FROM labs WHERE id = ?", (lab_id,)).fetchone()
+        if not lab:
+            raise HTTPException(status_code=404, detail="Lab not found.")
+
+        connection.execute("DELETE FROM links WHERE lab_id = ?", (lab_id,))
+        connection.execute("DELETE FROM users WHERE lab_id = ?", (lab_id,))
+        connection.execute("DELETE FROM labs WHERE id = ?", (lab_id,))
+        connection.commit()
+    except HTTPException:
+        connection.rollback()
+        raise
+    except sqlite3.Error:
+        connection.rollback()
+        raise HTTPException(status_code=500, detail="Lab could not be deleted.")
+    finally:
+        connection.close()
+
+    return {"message": "Lab deleted successfully."}
+
+
 def serialize_link(row):
     return {
         "id": row["id"],
@@ -307,12 +342,23 @@ async def get_links(lab_id: str | None = None):
     connection = get_connection()
     if lab_id:
         rows = connection.execute(
-            "SELECT * FROM links WHERE lab_id = ? ORDER BY date DESC, id DESC",
+            """
+            SELECT * FROM links
+            WHERE lab_id = ?
+            ORDER BY CASE WHEN lower(title) LIKE 'lab-%'
+                THEN CAST(SUBSTR(title, INSTR(title, '-') + 1) AS INTEGER)
+                ELSE -1 END DESC, date DESC, id DESC
+            """,
             (lab_id,),
         ).fetchall()
     else:
         rows = connection.execute(
-            "SELECT * FROM links ORDER BY date DESC, id DESC"
+            """
+            SELECT * FROM links
+            ORDER BY CASE WHEN lower(title) LIKE 'lab-%'
+                THEN CAST(SUBSTR(title, INSTR(title, '-') + 1) AS INTEGER)
+                ELSE -1 END DESC, date DESC, id DESC
+            """
         ).fetchall()
     connection.close()
     return [serialize_link(row) for row in rows]
@@ -320,7 +366,7 @@ async def get_links(lab_id: str | None = None):
 
 @app.post("/links")
 async def create_link(link: Link, user=Depends(require_admin)):
-    lab_id = user["lab_id"] if user["role"] != "SUPER_ADMIN" else link.lab_id
+    lab_id = link.lab_id
     connection = get_connection()
     lab = connection.execute("SELECT id FROM labs WHERE id = ?", (lab_id,)).fetchone()
     if not lab:
@@ -346,10 +392,7 @@ async def update_link(link_id: int, link: Link, user=Depends(require_admin)):
     if not existing:
         connection.close()
         raise HTTPException(status_code=404, detail="Link not found.")
-    if user["role"] != "SUPER_ADMIN" and existing["lab_id"] != user["lab_id"]:
-        connection.close()
-        raise HTTPException(status_code=403, detail="You can only modify links in your lab.")
-    lab_id = user["lab_id"] if user["role"] != "SUPER_ADMIN" else link.lab_id
+    lab_id = link.lab_id
     connection.execute(
         """
         UPDATE links
@@ -371,9 +414,6 @@ async def delete_link(link_id: int, user=Depends(require_admin)):
     if not existing:
         connection.close()
         raise HTTPException(status_code=404, detail="Link not found.")
-    if user["role"] != "SUPER_ADMIN" and existing["lab_id"] != user["lab_id"]:
-        connection.close()
-        raise HTTPException(status_code=403, detail="You can only delete links in your lab.")
     cursor = connection.execute("DELETE FROM links WHERE id = ?", (link_id,))
     connection.commit()
     connection.close()
@@ -460,8 +500,64 @@ async def create_admin(admin: AdminCreate, response: Response, _super_admin=Depe
     return {"message": "Admin created successfully.", "user": {"id": username, "name": admin.name, "role": "ADMIN", "labId": lab_id, "labName": admin.lab_name}}
 
 
+@app.get("/admin")
+async def list_admins(_super_admin=Depends(require_super_admin)):
+    connection = get_connection()
+    rows = connection.execute(
+        """
+        SELECT username, name, role, lab_id
+        FROM users
+        WHERE role IN ('ADMIN', 'SUPER_ADMIN')
+        ORDER BY CASE WHEN role = 'SUPER_ADMIN' THEN 0 ELSE 1 END, name COLLATE NOCASE
+        """
+    ).fetchall()
+    connection.close()
+    return {
+        "activeAdmins": len(rows),
+        "admins": [
+            {"id": row["username"], "name": row["name"], "role": row["role"], "labId": row["lab_id"]}
+            for row in rows
+        ],
+    }
+
+
+@app.delete("/admin/{username}")
+async def delete_admin(username: str, user=Depends(require_super_admin)):
+    if username == BOOTSTRAP_USERNAME or username == user["username"]:
+        raise HTTPException(status_code=400, detail="The bootstrap or current super admin cannot be deleted.")
+
+    connection = get_connection()
+    try:
+        admin = connection.execute(
+            "SELECT username, role, lab_id FROM users WHERE username = ?", (username,)
+        ).fetchone()
+        if not admin or admin["role"] != "ADMIN":
+            raise HTTPException(status_code=404, detail="Admin not found.")
+        if admin["lab_id"]:
+            connection.execute("DELETE FROM links WHERE lab_id = ?", (admin["lab_id"],))
+            connection.execute("DELETE FROM labs WHERE id = ?", (admin["lab_id"],))
+        connection.execute("DELETE FROM users WHERE username = ?", (username,))
+        connection.commit()
+    except HTTPException:
+        connection.rollback()
+        raise
+    except sqlite3.Error:
+        connection.rollback()
+        raise HTTPException(status_code=500, detail="Admin could not be deleted.")
+    finally:
+        connection.close()
+    return {"message": "Admin deleted successfully."}
+
+
 @app.post("/login")
-async def login(user: Faculty, response: Response):
+async def login(user: Faculty, request: Request, response: Response):
+    client_key = request.client.host if request.client else "unknown"
+    now = datetime.now(timezone.utc).timestamp()
+    recent_attempts = [timestamp for timestamp in login_attempts.get(client_key, []) if now - timestamp < LOGIN_ATTEMPT_WINDOW]
+    if len(recent_attempts) >= LOGIN_ATTEMPT_LIMIT:
+        raise HTTPException(status_code=429, detail="Too many login attempts. Try again in one minute.")
+    recent_attempts.append(now)
+    login_attempts[client_key] = recent_attempts
 
     connection = get_connection()
     cursor = connection.cursor()
@@ -501,10 +597,13 @@ async def login(user: Faculty, response: Response):
         secure=SECURE_COOKIE,
         samesite="lax",
     )
-    user_row = get_connection().execute(
+    user_connection = get_connection()
+    user_row = user_connection.execute(
         "SELECT username, name, role, lab_id FROM users WHERE username = ?",
         (user.username,),
     ).fetchone()
+    user_connection.close()
+    login_attempts.pop(client_key, None)
     return {
         "message": f"{user.username} has been successfully logged in.",
         "user": {
@@ -668,7 +767,7 @@ async def create_problem(problem: Problem, _admin=Depends(require_admin)):
 # ============================================================
 
 @app.get("/problems/{username}")
-async def get_problems_by_faculty(username: str):
+async def get_problems_by_faculty(username: str, _admin=Depends(require_admin)):
 
     connection = get_connection()
     cursor = connection.cursor()
@@ -717,7 +816,7 @@ async def get_problems_by_faculty(username: str):
 # ============================================================
 
 @app.get("/problems")
-async def get_all_problems():
+async def get_all_problems(_admin=Depends(require_admin)):
 
     connection = get_connection()
     cursor = connection.cursor()

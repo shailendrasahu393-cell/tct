@@ -14,4 +14,7 @@ export const labService = {
       throw error;
     }
   },
+  async deleteLab(id) {
+    await api.delete(`/labs/${id}`);
+  },
 };

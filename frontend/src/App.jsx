@@ -7,6 +7,8 @@ import AdminDashboard from "./pages/AdminDashboard";
 import AddLink from "./pages/AddLink";
 import ManageLinks from "./pages/ManageLinks";
 import AddAdmin from "./pages/AddAdmin";
+import ManageLabs from "./pages/ManageLabs";
+import ManageAdmins from "./pages/ManageAdmins";
 import ResetPassword from "./pages/ResetPassword";
 import Unauthorized from "./pages/Unauthorized";
 import NotFound from "./pages/NotFound";
@@ -31,6 +33,22 @@ export default function App() {
         element={
           <ProtectedRoute roles={["SUPER_ADMIN"]}>
             <AddAdmin />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/admin/manage-labs"
+        element={
+          <ProtectedRoute>
+            <ManageLabs />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/admin/manage-admins"
+        element={
+          <ProtectedRoute roles={["SUPER_ADMIN"]}>
+            <ManageAdmins />
           </ProtectedRoute>
         }
       />
