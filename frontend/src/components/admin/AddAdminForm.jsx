@@ -6,7 +6,6 @@ export default function AddAdminForm({ onSubmit }) {
   const [form, setForm] = useState({
     name: "",
     email: "",
-    recoveryEmail: "",
     password: "",
     confirm: "",
     lab: "",
@@ -36,14 +35,6 @@ export default function AddAdminForm({ onSubmit }) {
         label="Email or username"
         name="email"
         value={form.email}
-        onChange={update}
-      />
-      <Input
-        label="Recovery email"
-        name="recoveryEmail"
-        type="email"
-        autoComplete="email"
-        value={form.recoveryEmail}
         onChange={update}
       />
       <div className="form-row">

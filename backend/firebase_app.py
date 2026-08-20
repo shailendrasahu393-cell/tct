@@ -1,9 +1,6 @@
 import os
 import secrets
 import json
-import hashlib
-import urllib.request
-import urllib.error
 from datetime import datetime, timezone
 from typing import Any
 
@@ -51,11 +48,6 @@ SESSION_MAX_AGE = int(os.getenv("TCT_SESSION_MAX_AGE", str(60 * 60 * 8)))
 SECURE_COOKIE = os.getenv("TCT_SECURE_COOKIE", "true").lower() == "true"
 BOOTSTRAP_USERNAME = os.getenv("TCT_BOOTSTRAP_USERNAME", "@vivekshukla26")
 BOOTSTRAP_PASSWORD_HASH = os.getenv("TCT_BOOTSTRAP_PASSWORD_HASH")
-BOOTSTRAP_EMAIL = os.getenv("TCT_BOOTSTRAP_EMAIL")
-FRONTEND_URL = os.getenv("TCT_FRONTEND_URL", "http://localhost:5173").rstrip("/")
-RESEND_API_KEY = os.getenv("RESEND_API_KEY")
-EMAIL_FROM = os.getenv("EMAIL_FROM")
-RESET_TOKEN_TTL = 30 * 60
 LOGIN_ATTEMPT_WINDOW = 60
 LOGIN_ATTEMPT_LIMIT = 5
 login_attempts: dict[str, list[float]] = {}
@@ -69,7 +61,7 @@ def ensure_bootstrap_admin():
     if not lab_ref.get().exists:
         lab_ref.set({"name": "Vivek Sir's Lab", "faculty_name": "Vivek Sir", "class_name": "CSE-A", "description": "Problem-solving practice and weekly coding challenges.", "color": "violet"})
     if not user_ref.get().exists:
-        user_ref.set({"username": BOOTSTRAP_USERNAME, "password": BOOTSTRAP_PASSWORD_HASH, "email": BOOTSTRAP_EMAIL, "name": "Vivek Sir", "role": "SUPER_ADMIN", "lab_id": "lab-001"})
+        user_ref.set({"username": BOOTSTRAP_USERNAME, "name": "Vivek Sir", "role": "SUPER_ADMIN", "lab_id": "lab-001"})
 
 
 class Faculty(BaseModel):
@@ -79,7 +71,6 @@ class Faculty(BaseModel):
 
 class AdminCreate(BaseModel):
     username: str
-    recovery_email: str
     name: str
     password: str
     lab_name: str
@@ -88,15 +79,6 @@ class AdminCreate(BaseModel):
 
 class PasswordUpdate(BaseModel):
     old_password: str
-    new_password: str
-
-
-class PasswordResetRequest(BaseModel):
-    identity: str
-
-
-class PasswordResetComplete(BaseModel):
-    token: str
     new_password: str
 
 
@@ -128,33 +110,6 @@ def verify_password(value: str, hashed: str) -> bool:
         return password_hash.verify(value, hashed)
     except Exception:
         return False
-
-
-def token_hash(token: str) -> str:
-    return hashlib.sha256(token.encode("utf-8")).hexdigest()
-
-
-def send_reset_email(email: str, token: str):
-    if not RESEND_API_KEY or not EMAIL_FROM:
-        raise HTTPException(503, "Password reset email service is not configured.")
-    reset_url = f"{FRONTEND_URL}/admin/reset-password?token={token}"
-    payload = json.dumps({
-        "from": EMAIL_FROM,
-        "to": [email],
-        "subject": "Reset your TCT Lab password",
-        "html": f"<p>Use this link to reset your TCT Lab password. It expires in 30 minutes.</p><p><a href=\"{reset_url}\">Reset password</a></p>",
-    }).encode("utf-8")
-    request = urllib.request.Request(
-        "https://api.resend.com/emails",
-        data=payload,
-        headers={"Authorization": f"Bearer {RESEND_API_KEY}", "Content-Type": "application/json"},
-        method="POST",
-    )
-    try:
-        with urllib.request.urlopen(request, timeout=10):
-            return
-    except (urllib.error.HTTPError, urllib.error.URLError):
-        raise HTTPException(503, "Password reset email could not be sent.")
 
 
 def doc(collection: str, key: str):
@@ -291,7 +246,7 @@ def delete_link(link_id: str, user=Depends(require_admin)):
 @app.post("/admin")
 def create_admin(admin: AdminCreate, response: Response, _super_admin=Depends(require_super_admin)):
     username = admin.username.strip()
-    if not username.startswith("@") or "@" not in admin.recovery_email or "." not in admin.recovery_email:
+    if not username.startswith("@"):
         raise HTTPException(422, "User ID must start with @.")
     if len(admin.password) < 8 or not any(c.isupper() for c in admin.password) or not any(c.islower() for c in admin.password) or not any(c.isdigit() for c in admin.password):
         raise HTTPException(422, "Password must be at least 8 characters with uppercase, lowercase, and a number.")
@@ -301,7 +256,7 @@ def create_admin(admin: AdminCreate, response: Response, _super_admin=Depends(re
         raise HTTPException(409, "User ID or lab already exists.")
     batch = db.batch()
     batch.set(lab_ref, {"name": admin.lab_name, "faculty_name": admin.name, "class_name": admin.class_name, "description": "Faculty lab resources.", "color": "cyan"})
-    batch.set(user_ref, {"username": username, "password": hash_password(admin.password), "email": admin.recovery_email.strip().lower(), "name": admin.name, "role": "ADMIN", "lab_id": lab_id})
+    batch.set(user_ref, {"username": username, "password": hash_password(admin.password), "name": admin.name, "role": "ADMIN", "lab_id": lab_id})
     batch.commit()
     return {"message": "Admin created successfully.", "user": {"id": username, "name": admin.name, "role": "ADMIN", "labId": lab_id, "labName": admin.lab_name}}
 
@@ -312,7 +267,7 @@ def register(user: Faculty, _super_admin=Depends(require_super_admin)):
     reference = doc("users", username)
     if reference.get().exists:
         raise HTTPException(409, "Username already exists.")
-    reference.set({"username": username, "password": hash_password(user.password), "email": None, "name": "", "role": "ADMIN", "lab_id": None})
+    reference.set({"username": username, "password": hash_password(user.password), "name": "", "role": "ADMIN", "lab_id": None})
     return {"message": "You have been successfully registered."}
 
 
@@ -352,7 +307,8 @@ def login(user: Faculty, request: Request, response: Response):
     login_attempts[client_key] = recent + [now]
     snapshot = doc("users", user.username).get()
     data = snapshot.to_dict() if snapshot.exists else None
-    if not data or not verify_password(user.password, data.get("password", "")):
+    stored_hash = BOOTSTRAP_PASSWORD_HASH if user.username == BOOTSTRAP_USERNAME else data.get("password", "") if data else ""
+    if not data or not stored_hash or not verify_password(user.password, stored_hash):
         raise HTTPException(401, "Invalid username or password.")
     response.set_cookie(SESSION_COOKIE, serializer.dumps(user.username), max_age=SESSION_MAX_AGE, httponly=True, secure=SECURE_COOKIE, samesite="lax")
     login_attempts.pop(client_key, None)
@@ -370,45 +326,10 @@ def current_user(user=Depends(authenticated_user)):
     return {"user": public_user(user)}
 
 
-@app.post("/password-reset/request")
-def request_password_reset(reset_request: PasswordResetRequest):
-    identity = reset_request.identity.strip()
-    snapshots = list(db.collection("users").where(filter=FieldFilter("username", "==", identity)).limit(1).stream())
-    if not snapshots and "@" in identity:
-        snapshots = list(db.collection("users").where(filter=FieldFilter("email", "==", identity.lower())).limit(1).stream())
-    if snapshots:
-        user = snapshots[0].to_dict()
-        email = user.get("email")
-        if email:
-            token = secrets.token_urlsafe(32)
-            db.collection("password_resets").document(token_hash(token)).set({
-                "username": user["username"],
-                "expires_at": datetime.now(timezone.utc).timestamp() + RESET_TOKEN_TTL,
-                "used": False,
-            })
-            send_reset_email(email, token)
-    return {"message": "If the account exists, a password reset link has been sent."}
-
-
-@app.post("/password-reset/complete")
-def complete_password_reset(reset: PasswordResetComplete):
-    if len(reset.new_password) < 8 or not any(c.isupper() for c in reset.new_password) or not any(c.islower() for c in reset.new_password) or not any(c.isdigit() for c in reset.new_password):
-        raise HTTPException(422, "Password must be at least 8 characters with uppercase, lowercase, and a number.")
-    reference = doc("password_resets", token_hash(reset.token))
-    snapshot = reference.get()
-    data = snapshot.to_dict() if snapshot.exists else None
-    if not data or data.get("used") or data.get("expires_at", 0) < datetime.now(timezone.utc).timestamp():
-        raise HTTPException(400, "This password reset link is invalid or expired.")
-    user_ref = doc("users", data["username"])
-    if not user_ref.get().exists:
-        raise HTTPException(400, "This password reset link is invalid or expired.")
-    user_ref.update({"password": hash_password(reset.new_password)})
-    reference.update({"used": True})
-    return {"message": "Password successfully reset."}
-
-
 @app.put("/faculty/{username}/password")
 def update_password(username: str, password_data: PasswordUpdate, user=Depends(require_admin)):
+    if username == BOOTSTRAP_USERNAME:
+        raise HTTPException(400, "The super admin password is managed by the environment configuration.")
     if user["role"] != "SUPER_ADMIN" and user["username"] != username:
         raise HTTPException(403, "You can only update your own password.")
     reference = doc("users", username)

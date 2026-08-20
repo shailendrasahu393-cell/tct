@@ -60,8 +60,8 @@ export default function AdminLogin() {
             {loading ? "Signing in..." : "Login securely"}
           </Button>
         </form>
-        <Link className="forgot" to="/admin/forgot-password">
-          Forgot password?
+        <Link className="forgot" to="/admin/reset-password">
+          Change password
         </Link>
         <small className="login-note">
           Authentication is handled by the backend.
