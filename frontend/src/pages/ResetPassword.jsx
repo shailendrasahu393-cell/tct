@@ -8,13 +8,18 @@ export default function ResetPassword() {
   const { currentUser } = useAuth();
   const [done, setDone] = useState(false);
   const [error, setError] = useState("");
+  const [saving, setSaving] = useState(false);
   const submit = async (form) => {
+    if (saving) return;
     setError("");
+    setSaving(true);
     try {
       await adminService.resetPassword(form, currentUser.id);
       setDone(true);
     } catch (requestError) {
       setError(requestError.response?.data?.detail || requestError.message);
+    } finally {
+      setSaving(false);
     }
   };
   return (
@@ -33,7 +38,7 @@ export default function ResetPassword() {
             </div>
           ) : (
             <>
-              <ResetPasswordForm onSubmit={submit} />
+              <ResetPasswordForm onSubmit={submit} submitting={saving} />
               {error && <p className="form-error">{error}</p>}
             </>
           )}

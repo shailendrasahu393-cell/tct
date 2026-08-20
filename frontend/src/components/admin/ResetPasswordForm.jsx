@@ -2,7 +2,7 @@ import { useState } from "react";
 import Input from "../common/Input";
 import Button from "../common/Button";
 import { passwordRules } from "../../utils/validation";
-export default function ResetPasswordForm({ onSubmit }) {
+export default function ResetPasswordForm({ onSubmit, submitting = false }) {
   const [form, setForm] = useState({ current: "", password: "", confirm: "" });
   const [error, setError] = useState("");
   const update = (e) => setForm({ ...form, [e.target.name]: e.target.value });
@@ -14,7 +14,7 @@ export default function ResetPasswordForm({ onSubmit }) {
       return setError("Your new password must meet the listed requirements.");
     if (form.password !== form.confirm)
       return setError("New passwords do not match.");
-    onSubmit(form);
+    if (!submitting) onSubmit(form);
   };
   return (
     <form className="content-form" onSubmit={submit}>
@@ -43,7 +43,7 @@ export default function ResetPasswordForm({ onSubmit }) {
         onChange={update}
       />
       {error && <p className="form-error">{error}</p>}
-      <Button>Update password</Button>
+      <Button disabled={submitting}>{submitting ? "Updating..." : "Update password"}</Button>
     </form>
   );
 }

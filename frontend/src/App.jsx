@@ -39,7 +39,7 @@ export default function App() {
       <Route
         path="/admin/manage-labs"
         element={
-          <ProtectedRoute>
+          <ProtectedRoute roles={["SUPER_ADMIN"]}>
             <ManageLabs />
           </ProtectedRoute>
         }

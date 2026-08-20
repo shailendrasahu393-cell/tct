@@ -2,7 +2,7 @@ import { useState } from "react";
 import Button from "../common/Button";
 import Input from "../common/Input";
 import { isValidUrl } from "../../utils/validation";
-export default function AddLinkForm({ onSubmit, initialValue }) {
+export default function AddLinkForm({ onSubmit, initialValue, submitting = false }) {
   const [form, setForm] = useState(
     initialValue || {
       category: "Daily Lab",
@@ -23,7 +23,7 @@ export default function AddLinkForm({ onSubmit, initialValue }) {
       next.url = "Enter a valid URL including https://.";
     if (!form.category) next.category = "Select a category.";
     setErrors(next);
-    if (!Object.keys(next).length) onSubmit(form);
+    if (!Object.keys(next).length && !submitting) onSubmit(form);
   };
   return (
     <form className="content-form" onSubmit={submit}>
@@ -74,8 +74,8 @@ export default function AddLinkForm({ onSubmit, initialValue }) {
         value={form.date}
         onChange={update}
       />
-      <Button type="submit">
-        {initialValue ? "Save changes" : "Add link"}
+      <Button type="submit" disabled={submitting}>
+        {submitting ? "Saving..." : initialValue ? "Save changes" : "Add link"}
       </Button>
     </form>
   );

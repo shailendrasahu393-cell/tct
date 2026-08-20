@@ -1,7 +1,7 @@
 import os
-import secrets
 import json
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Any
 
 import firebase_admin
@@ -11,17 +11,60 @@ from firebase_admin import credentials, firestore
 from google.cloud.firestore_v1 import FieldFilter
 from itsdangerous import BadSignature, SignatureExpired, URLSafeTimedSerializer
 from pwdlib import PasswordHash
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
+
+
+BACKEND_DIR = Path(__file__).resolve().parent
+
+
+def load_backend_env():
+    env_path = BACKEND_DIR / ".env"
+    if not env_path.exists():
+        return
+    current_key = None
+    current_value: list[str] = []
+
+    def flush():
+        nonlocal current_key, current_value
+        if current_key and current_key not in os.environ:
+            os.environ[current_key] = "\n".join(current_value).strip()
+        current_key = None
+        current_value = []
+
+    for raw_line in env_path.read_text(encoding="utf-8").splitlines():
+        line = raw_line.strip()
+        if not line or line.startswith("#"):
+            continue
+        if "=" in line and line.split("=", 1)[0].replace("_", "").isalnum():
+            flush()
+            current_key, value = line.split("=", 1)
+            current_key = current_key.strip()
+            current_value = [value.strip()]
+        elif current_key == "FIREBASE_SERVICE_ACCOUNT_JSON":
+            current_value.append(raw_line)
+    flush()
+
+
+load_backend_env()
 
 
 def _firebase_client():
     if not firebase_admin._apps:
-        credential_path = os.getenv("FIREBASE_SERVICE_ACCOUNT_JSON")
+        credential_value = os.getenv("FIREBASE_SERVICE_ACCOUNT_JSON")
         options = {"projectId": os.getenv("FIREBASE_PROJECT_ID")}
-        if credential_path and os.path.isfile(credential_path):
-            credential = credentials.Certificate(credential_path)
-        elif credential_path:
-            credential = credentials.Certificate(json.loads(credential_path))
+        credential_path = Path(credential_value) if credential_value else None
+        if credential_path and not credential_path.is_absolute():
+            credential_path = BACKEND_DIR / credential_path
+        if credential_path and credential_path.is_file():
+            credential = credentials.Certificate(str(credential_path))
+        elif credential_value:
+            try:
+                credential = credentials.Certificate(json.loads(credential_value))
+            except json.JSONDecodeError as error:
+                raise RuntimeError(
+                    "FIREBASE_SERVICE_ACCOUNT_JSON must be a path to a service-account JSON file "
+                    "or a complete JSON object on one line."
+                ) from None
         else:
             credential = credentials.ApplicationDefault()
         firebase_admin.initialize_app(credential, options)
@@ -68,6 +111,14 @@ class Faculty(BaseModel):
     username: str
     password: str
 
+    @field_validator("username")
+    @classmethod
+    def normalize_username(cls, value: str) -> str:
+        value = value.strip()
+        if not value:
+            raise ValueError("Username is required.")
+        return value
+
 
 class AdminCreate(BaseModel):
     username: str
@@ -76,10 +127,25 @@ class AdminCreate(BaseModel):
     lab_name: str
     class_name: str
 
+    @field_validator("username", "name", "password", "lab_name", "class_name")
+    @classmethod
+    def required_text(cls, value: str) -> str:
+        value = value.strip()
+        if not value:
+            raise ValueError("This field is required.")
+        return value
+
 
 class PasswordUpdate(BaseModel):
     old_password: str
     new_password: str
+
+    @field_validator("old_password", "new_password")
+    @classmethod
+    def required_password(cls, value: str) -> str:
+        if not value:
+            raise ValueError("Password is required.")
+        return value
 
 
 class Problem(BaseModel):
@@ -90,6 +156,14 @@ class Problem(BaseModel):
     data: str
     description: str | None = None
 
+    @field_validator("username", "type", "title", "problem", "data")
+    @classmethod
+    def required_text(cls, value: str) -> str:
+        value = value.strip()
+        if not value:
+            raise ValueError("This field is required.")
+        return value
+
 
 class Link(BaseModel):
     lab_id: str
@@ -99,6 +173,14 @@ class Link(BaseModel):
     category: str
     date: str
     status: str = "Active"
+
+    @field_validator("lab_id", "title", "url", "category", "date", "status")
+    @classmethod
+    def required_text(cls, value: str) -> str:
+        value = value.strip()
+        if not value:
+            raise ValueError("This field is required.")
+        return value
 
 
 def hash_password(value: str) -> str:
@@ -114,6 +196,36 @@ def verify_password(value: str, hashed: str) -> bool:
 
 def doc(collection: str, key: str):
     return db.collection(collection).document(key)
+
+
+def validate_password_strength(value: str):
+    if len(value) < 8 or not any(c.isupper() for c in value) or not any(c.islower() for c in value) or not any(c.isdigit() for c in value):
+        raise HTTPException(422, "Password must be at least 8 characters with uppercase, lowercase, and a number.")
+
+
+def can_manage_lab(user: dict[str, Any], lab_id: str | None) -> bool:
+    return user.get("role") == "SUPER_ADMIN" or (lab_id is not None and user.get("lab_id") == lab_id)
+
+
+def require_lab_access(user: dict[str, Any], lab_id: str | None):
+    if not can_manage_lab(user, lab_id):
+        raise HTTPException(403, "You cannot manage resources for this lab.")
+
+
+def set_session_cookie(response: Response, username: str):
+    response.set_cookie(
+        SESSION_COOKIE,
+        serializer.dumps(username),
+        max_age=SESSION_MAX_AGE,
+        httponly=True,
+        secure=SECURE_COOKIE,
+        samesite="lax",
+        path="/",
+    )
+
+
+def clear_session_cookie(response: Response):
+    response.delete_cookie(SESSION_COOKIE, path="/", secure=SECURE_COOKIE, httponly=True, samesite="lax")
 
 
 ensure_bootstrap_admin()
@@ -192,7 +304,7 @@ def get_lab(lab_id: str):
 
 
 @app.delete("/labs/{lab_id}")
-def delete_lab(lab_id: str, user=Depends(require_admin)):
+def delete_lab(lab_id: str, user=Depends(require_super_admin)):
     if lab_id == "lab-001":
         raise HTTPException(400, "The bootstrap lab cannot be deleted.")
     lab = doc("labs", lab_id).get()
@@ -218,6 +330,7 @@ def get_links(lab_id: str | None = None):
 
 @app.post("/links")
 def create_link(link: Link, user=Depends(require_admin)):
+    require_lab_access(user, link.lab_id)
     if not doc("labs", link.lab_id).get().exists:
         raise HTTPException(404, "Lab not found.")
     reference = db.collection("links").document()
@@ -228,8 +341,13 @@ def create_link(link: Link, user=Depends(require_admin)):
 @app.put("/links/{link_id}")
 def update_link(link_id: str, link: Link, user=Depends(require_admin)):
     reference = doc("links", link_id)
-    if not reference.get().exists:
+    snapshot = reference.get()
+    if not snapshot.exists:
         raise HTTPException(404, "Link not found.")
+    require_lab_access(user, snapshot.to_dict().get("lab_id"))
+    require_lab_access(user, link.lab_id)
+    if not doc("labs", link.lab_id).get().exists:
+        raise HTTPException(404, "Lab not found.")
     reference.set(link.model_dump())
     return link_json(reference.get())
 
@@ -237,19 +355,20 @@ def update_link(link_id: str, link: Link, user=Depends(require_admin)):
 @app.delete("/links/{link_id}")
 def delete_link(link_id: str, user=Depends(require_admin)):
     reference = doc("links", link_id)
-    if not reference.get().exists:
+    snapshot = reference.get()
+    if not snapshot.exists:
         raise HTTPException(404, "Link not found.")
+    require_lab_access(user, snapshot.to_dict().get("lab_id"))
     reference.delete()
     return {"message": "Link successfully deleted."}
 
 
 @app.post("/admin")
-def create_admin(admin: AdminCreate, response: Response, _super_admin=Depends(require_super_admin)):
+def create_admin(admin: AdminCreate, _super_admin=Depends(require_super_admin)):
     username = admin.username.strip()
     if not username.startswith("@"):
         raise HTTPException(422, "User ID must start with @.")
-    if len(admin.password) < 8 or not any(c.isupper() for c in admin.password) or not any(c.islower() for c in admin.password) or not any(c.isdigit() for c in admin.password):
-        raise HTTPException(422, "Password must be at least 8 characters with uppercase, lowercase, and a number.")
+    validate_password_strength(admin.password)
     lab_id = f"lab-{username.lstrip('@').lower().replace(' ', '-')[:24]}"
     user_ref, lab_ref = doc("users", username), doc("labs", lab_id)
     if user_ref.get().exists or lab_ref.get().exists:
@@ -264,6 +383,9 @@ def create_admin(admin: AdminCreate, response: Response, _super_admin=Depends(re
 @app.post("/register")
 def register(user: Faculty, _super_admin=Depends(require_super_admin)):
     username = user.username.strip()
+    if not username.startswith("@"):
+        raise HTTPException(422, "User ID must start with @.")
+    validate_password_strength(user.password)
     reference = doc("users", username)
     if reference.get().exists:
         raise HTTPException(409, "Username already exists.")
@@ -310,14 +432,14 @@ def login(user: Faculty, request: Request, response: Response):
     stored_hash = BOOTSTRAP_PASSWORD_HASH if user.username == BOOTSTRAP_USERNAME else data.get("password", "") if data else ""
     if not data or not stored_hash or not verify_password(user.password, stored_hash):
         raise HTTPException(401, "Invalid username or password.")
-    response.set_cookie(SESSION_COOKIE, serializer.dumps(user.username), max_age=SESSION_MAX_AGE, httponly=True, secure=SECURE_COOKIE, samesite="lax")
+    set_session_cookie(response, user.username)
     login_attempts.pop(client_key, None)
     return {"message": f"{user.username} has been successfully logged in.", "user": public_user(data)}
 
 
 @app.post("/logout")
 def logout(response: Response):
-    response.delete_cookie(SESSION_COOKIE)
+    clear_session_cookie(response)
     return {"message": "Logged out successfully."}
 
 
@@ -332,6 +454,7 @@ def update_password(username: str, password_data: PasswordUpdate, user=Depends(r
         raise HTTPException(400, "The super admin password is managed by the environment configuration.")
     if user["role"] != "SUPER_ADMIN" and user["username"] != username:
         raise HTTPException(403, "You can only update your own password.")
+    validate_password_strength(password_data.new_password)
     reference = doc("users", username)
     snapshot = reference.get()
     if not snapshot.exists:
@@ -343,40 +466,57 @@ def update_password(username: str, password_data: PasswordUpdate, user=Depends(r
 
 
 @app.post("/problems")
-def create_problem(problem: Problem, _admin=Depends(require_admin)):
-    if not doc("users", problem.username).get().exists:
+def create_problem(problem: Problem, user=Depends(require_admin)):
+    if user.get("role") != "SUPER_ADMIN" and user.get("username") != problem.username:
+        raise HTTPException(403, "You can only create problems for your own account.")
+    faculty = doc("users", problem.username).get()
+    if not faculty.exists:
         raise HTTPException(404, "Faculty username does not exist.")
+    if user.get("role") != "SUPER_ADMIN" and faculty.to_dict().get("lab_id") != user.get("lab_id"):
+        raise HTTPException(403, "You cannot manage another lab's problems.")
     reference = db.collection("problems").document()
     reference.set(problem.model_dump())
     return {"message": "Problem successfully created.", "problem_id": reference.id}
 
 
 @app.get("/problems/{username}")
-def get_problems_by_faculty(username: str, _admin=Depends(require_admin)):
+def get_problems_by_faculty(username: str, user=Depends(require_admin)):
+    if user.get("role") != "SUPER_ADMIN" and user.get("username") != username:
+        raise HTTPException(403, "You can only view your own problems.")
     problems = [problem_json(item) for item in db.collection("problems").where(filter=FieldFilter("username", "==", username)).stream()]
     return {"username": username, "problems": problems}
 
 
 @app.get("/problems")
-def get_all_problems(_admin=Depends(require_admin)):
+def get_all_problems(_admin=Depends(require_super_admin)):
     return {"problems": [problem_json(item) for item in db.collection("problems").stream()]}
 
 
 @app.put("/problems/{problem_id}")
-def update_problem(problem_id: str, problem: Problem, _admin=Depends(require_admin)):
+def update_problem(problem_id: str, problem: Problem, user=Depends(require_admin)):
     reference = doc("problems", problem_id)
-    if not reference.get().exists:
+    snapshot = reference.get()
+    if not snapshot.exists:
         raise HTTPException(404, "Problem not found.")
-    if not doc("users", problem.username).get().exists:
+    existing_username = snapshot.to_dict().get("username")
+    if user.get("role") != "SUPER_ADMIN" and (user.get("username") != existing_username or user.get("username") != problem.username):
+        raise HTTPException(403, "You can only update your own problems.")
+    faculty = doc("users", problem.username).get()
+    if not faculty.exists:
         raise HTTPException(404, "Faculty username does not exist.")
+    if user.get("role") != "SUPER_ADMIN" and faculty.to_dict().get("lab_id") != user.get("lab_id"):
+        raise HTTPException(403, "You cannot move a problem to another lab.")
     reference.set(problem.model_dump())
     return {"message": "Problem successfully updated.", "problem_id": problem_id}
 
 
 @app.delete("/problems/{problem_id}")
-def delete_problem(problem_id: str, _admin=Depends(require_admin)):
+def delete_problem(problem_id: str, user=Depends(require_admin)):
     reference = doc("problems", problem_id)
-    if not reference.get().exists:
+    snapshot = reference.get()
+    if not snapshot.exists:
         raise HTTPException(404, "Problem not found.")
+    if user.get("role") != "SUPER_ADMIN" and snapshot.to_dict().get("username") != user.get("username"):
+        raise HTTPException(403, "You can only delete your own problems.")
     reference.delete()
     return {"message": "Problem successfully deleted.", "problem_id": problem_id}

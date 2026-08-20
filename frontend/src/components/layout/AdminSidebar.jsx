@@ -37,10 +37,12 @@ export default function AdminSidebar({ open, onClose }) {
         ))}
         {currentUser && (
           <>
-            <NavLink to="/admin/manage-labs" onClick={onClose}>
-              <Building2 size={18} />
-              Manage Labs
-            </NavLink>
+            {currentUser.role === "SUPER_ADMIN" && (
+              <NavLink to="/admin/manage-labs" onClick={onClose}>
+                <Building2 size={18} />
+                Manage Labs
+              </NavLink>
+            )}
             {currentUser.role === "SUPER_ADMIN" && (
               <NavLink to="/admin/add-admin" onClick={onClose}>
                 <UserPlus size={18} />

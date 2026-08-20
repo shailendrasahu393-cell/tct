@@ -36,7 +36,7 @@ export default function AddLink() {
           </p>
         </div>
         <div className="form-card">
-          <AddLinkForm onSubmit={submit} />
+          <AddLinkForm onSubmit={submit} submitting={saving} />
           {error && <p className="form-error">{error}</p>}
           {saving && <p className="saving-note">Saving link…</p>}
         </div>

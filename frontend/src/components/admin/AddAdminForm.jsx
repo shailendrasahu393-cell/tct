@@ -2,7 +2,7 @@ import { useState } from "react";
 import Input from "../common/Input";
 import Button from "../common/Button";
 import { passwordError, passwordRules } from "../../utils/validation";
-export default function AddAdminForm({ onSubmit }) {
+export default function AddAdminForm({ onSubmit, submitting = false }) {
   const [form, setForm] = useState({
     name: "",
     email: "",
@@ -21,7 +21,7 @@ export default function AddAdminForm({ onSubmit }) {
       return setError(passwordError(form.password));
     if (form.password !== form.confirm)
       return setError("Passwords do not match.");
-    onSubmit(form);
+    if (!submitting) onSubmit(form);
   };
   return (
     <form className="content-form" onSubmit={submit}>
@@ -61,7 +61,7 @@ export default function AddAdminForm({ onSubmit }) {
         onChange={update}
       />
       {error && <p className="form-error">{error}</p>}
-      <Button>Create admin</Button>
+      <Button disabled={submitting}>{submitting ? "Creating..." : "Create admin"}</Button>
     </form>
   );
 }
