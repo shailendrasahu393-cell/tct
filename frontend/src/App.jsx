@@ -3,6 +3,7 @@ import Home from "./pages/Home";
 import About from "./pages/About";
 import Lab from "./pages/Lab";
 import AdminLogin from "./pages/AdminLogin";
+import ForgotPassword from "./pages/ForgotPassword";
 import AdminDashboard from "./pages/AdminDashboard";
 import AddLink from "./pages/AddLink";
 import ManageLinks from "./pages/ManageLinks";
@@ -25,6 +26,7 @@ export default function App() {
       <Route path="/about" element={<About />} />
       <Route path="/lab/:labId" element={<Lab />} />
       <Route path="/admin/login" element={<AdminLogin />} />
+      <Route path="/admin/forgot-password" element={<ForgotPassword />} />
       <Route path="/admin/dashboard" element={protect(AdminDashboard)} />
       <Route path="/admin/add-link" element={protect(AddLink)} />
       <Route path="/admin/manage-links" element={protect(ManageLinks)} />
@@ -52,7 +54,7 @@ export default function App() {
           </ProtectedRoute>
         }
       />
-      <Route path="/admin/reset-password" element={protect(ResetPassword)} />
+      <Route path="/admin/reset-password" element={<ResetPassword />} />
       <Route path="/unauthorized" element={<Unauthorized />} />
       <Route path="*" element={<NotFound />} />
     </Routes>

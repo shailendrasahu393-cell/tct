@@ -112,16 +112,26 @@ FIREBASE_PROJECT_ID=tctlab
 FIREBASE_SERVICE_ACCOUNT_JSON=<complete service-account JSON>
 TCT_SESSION_SECRET=<long random secret>
 TCT_BOOTSTRAP_USERNAME=@vivekshukla26
+TCT_BOOTSTRAP_EMAIL=admin@example.com
 TCT_BOOTSTRAP_PASSWORD_HASH=<Argon2 hash>
 TCT_SESSION_MAX_AGE=28800
 TCT_SECURE_COOKIE=true
 TCT_CORS_ORIGINS=https://<your-site>.netlify.app
+TCT_FRONTEND_URL=https://<your-site>.netlify.app
+RESEND_API_KEY=<Resend API key>
+EMAIL_FROM=TCT Lab <noreply@your-domain.example>
 ```
 
 `FIREBASE_SERVICE_ACCOUNT_JSON` is parsed as JSON by the function. Paste the
 complete downloaded service-account JSON into the Netlify variable; never put
 it in Git or in a `VITE_*` variable. `TCT_CORS_ORIGINS` must be the exact final
 Netlify URL. No `VITE_API_BASE_URL` is needed because `/api` is same-origin.
+
+Password recovery uses Resend. Verify your sending domain in Resend, then set
+`RESEND_API_KEY` and a verified `EMAIL_FROM`. New admins must have a recovery
+email. Existing Firestore users need an `email` field before they can use
+forgot-password recovery; otherwise they can still change their password while
+logged in.
 
 4. Trigger a deploy. Then verify:
 

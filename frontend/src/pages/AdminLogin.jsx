@@ -60,7 +60,7 @@ export default function AdminLogin() {
             {loading ? "Signing in..." : "Login securely"}
           </Button>
         </form>
-        <Link className="forgot" to="/admin/reset-password">
+        <Link className="forgot" to="/admin/forgot-password">
           Forgot password?
         </Link>
         <small className="login-note">
