@@ -8,7 +8,6 @@
   SECRETS_SCAN_OMIT_PATHS = ".netlify/**,frontend/node_modules/**"
 
 [functions]
-  python_runtime = "3.11"
   included_files = ["backend/**"]
 
 [[redirects]]
