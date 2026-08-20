@@ -75,6 +75,35 @@
   border-color: var(--purple);
   box-shadow: 0 0 0 3px #edeaff;
 }
+.field__input-wrap {
+  display: block;
+  position: relative;
+}
+.field__input-wrap input {
+  padding-right: 40px;
+}
+.field__toggle {
+  position: absolute;
+  top: 50%;
+  right: 8px;
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: #888697;
+  transform: translateY(-50%);
+  cursor: pointer;
+}
+.field__toggle:hover,
+.field__toggle:focus-visible {
+  background: #f0eff8;
+  color: var(--purple);
+  outline: none;
+}
 .field__error,
 .form-error {
   display: block;
