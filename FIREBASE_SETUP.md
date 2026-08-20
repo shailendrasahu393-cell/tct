@@ -39,7 +39,7 @@ Edit `backend/.env`:
 FIREBASE_PROJECT_ID=your-project-id
 FIREBASE_SERVICE_ACCOUNT_JSON=./firebase-service-account.json
 TCT_SESSION_SECRET=use-a-long-random-secret
-TCT_BOOTSTRAP_USERNAME=@vivekshukla26
+TCT_BOOTSTRAP_USERNAME=YOUR_ADMIN_USERNAME_HERE
 TCT_BOOTSTRAP_PASSWORD_HASH=your-argon2-hash
 TCT_SESSION_MAX_AGE=28800
 TCT_SECURE_COOKIE=true
@@ -108,10 +108,10 @@ function, so the frontend uses the same-origin `/api` URL automatically.
   > Production:
 
 ```text
-FIREBASE_PROJECT_ID=tctlab
+FIREBASE_PROJECT_ID=your-project-id
 FIREBASE_SERVICE_ACCOUNT_JSON=<complete service-account JSON>
 TCT_SESSION_SECRET=<long random secret>
-TCT_BOOTSTRAP_USERNAME=@vivekshukla26
+TCT_BOOTSTRAP_USERNAME=YOUR_ADMIN_USERNAME_HERE
 TCT_BOOTSTRAP_PASSWORD_HASH=<Argon2 hash>
 TCT_SESSION_MAX_AGE=28800
 TCT_SECURE_COOKIE=true
@@ -171,7 +171,18 @@ Set the production API URL in `frontend/.env.production`:
 ```env
 VITE_API_BASE_URL=https://your-api-domain.example
 VITE_API_TIMEOUT_MS=10000
+VITE_FIREBASE_API_KEY=YOUR_API_KEY_HERE
+VITE_FIREBASE_AUTH_DOMAIN=your-project-id.firebaseapp.com
+VITE_FIREBASE_PROJECT_ID=your-project-id
+VITE_FIREBASE_STORAGE_BUCKET=your-project-id.firebasestorage.app
+VITE_FIREBASE_MESSAGING_SENDER_ID=YOUR_MESSAGING_SENDER_ID
+VITE_FIREBASE_APP_ID=YOUR_APP_ID
+VITE_FIREBASE_MEASUREMENT_ID=YOUR_MEASUREMENT_ID
 ```
+
+These same `VITE_FIREBASE_*` values must also be added under Netlify Site
+configuration > Environment variables when deploying through Netlify, since
+`frontend/src/firebase.js` reads them from `import.meta.env` at build time.
 
 Build the frontend:
 
