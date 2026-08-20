@@ -4,3 +4,4 @@ pydantic
 pwdlib[argon2]
 itsdangerous
 python-dotenv
+firebase-admin

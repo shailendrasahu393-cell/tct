@@ -11,6 +11,8 @@ venv/
 # Local backend state and secrets
 backend/my_database.db
 backend/.env
+backend/firebase-service-account.json
+firebase-debug.log
 frontend/.env
 .env
 
