@@ -12,7 +12,7 @@
 
 [[redirects]]
   from = "/api/*"
-  to = "/.netlify/functions/api/:splat"
+  to = "https://tctlab.onrender.com/api/:splat"
   status = 200
   force = true
 
