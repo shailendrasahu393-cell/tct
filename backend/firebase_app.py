@@ -49,46 +49,25 @@ load_backend_env()
 
 
 def _firebase_client():
-    """Initialize Firebase Admin using a local JSON file or Render env JSON."""
-    if firebase_admin._apps:
-        return firestore.client()
-
-    credential_value = os.getenv("FIREBASE_SERVICE_ACCOUNT_JSON", "").strip()
-    project_id = os.getenv("FIREBASE_PROJECT_ID", "").strip()
-
-    if not credential_value:
-        raise RuntimeError(
-            "FIREBASE_SERVICE_ACCOUNT_JSON is required. "
-            "Set it to the local service-account JSON path for local development "
-            "or the complete service-account JSON object on Render."
-        )
-
-    # Local development: allow a relative/absolute path to the JSON file.
-    credential_path = Path(credential_value)
-    if not credential_path.is_absolute():
-        credential_path = BACKEND_DIR / credential_path
-
-    if credential_path.is_file():
-        credential = credentials.Certificate(str(credential_path))
-    else:
-        # Render: the complete service-account JSON is stored in an env variable.
-        try:
-            service_account_info = json.loads(credential_value)
-        except json.JSONDecodeError:
-            raise RuntimeError(
-                "FIREBASE_SERVICE_ACCOUNT_JSON must be either a valid path to "
-                "a service-account JSON file or a valid JSON object."
-            ) from None
-
-        if not isinstance(service_account_info, dict):
-            raise RuntimeError(
-                "FIREBASE_SERVICE_ACCOUNT_JSON must contain a JSON object."
-            )
-
-        credential = credentials.Certificate(service_account_info)
-
-    options = {"projectId": project_id} if project_id else {}
-    firebase_admin.initialize_app(credential, options)
+    if not firebase_admin._apps:
+        credential_value = os.getenv("FIREBASE_SERVICE_ACCOUNT_JSON")
+        options = {"projectId": os.getenv("FIREBASE_PROJECT_ID")}
+        credential_path = Path(credential_value) if credential_value else None
+        if credential_path and not credential_path.is_absolute():
+            credential_path = BACKEND_DIR / credential_path
+        if credential_path and credential_path.is_file():
+            credential = credentials.Certificate(str(credential_path))
+        elif credential_value:
+            try:
+                credential = credentials.Certificate(json.loads(credential_value))
+            except json.JSONDecodeError as error:
+                raise RuntimeError(
+                    "FIREBASE_SERVICE_ACCOUNT_JSON must be a path to a service-account JSON file "
+                    "or a complete JSON object on one line."
+                ) from None
+        else:
+            credential = credentials.ApplicationDefault()
+        firebase_admin.initialize_app(credential, options)
     return firestore.client()
 
 
