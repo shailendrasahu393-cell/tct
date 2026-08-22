@@ -1373,3 +1373,16 @@ footer {
   color: var(--muted);
   margin-bottom: 22px;
 }
+.home-button {
+  display: block;
+  width: fit-content;
+  margin: 14px auto 0;
+  color: #5b4ee8;
+  text-decoration: none;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.home-button:hover {
+  text-decoration: underline;
+}
