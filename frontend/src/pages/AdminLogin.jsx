@@ -63,6 +63,9 @@ export default function AdminLogin() {
         <Link className="forgot" to="/admin/reset-password">
           Change password
         </Link>
+        <Link className="home-button" to="/">
+          Home
+        </Link>
         <small className="login-note">
           Authentication is handled by the backend.
         </small>
