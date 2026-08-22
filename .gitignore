@@ -9,12 +9,16 @@ __pycache__/
 venv/
 
 # Local backend state and secrets
-backend/my_database.db
+*.db
 backend/.env
+backend/*service-account*.json
 backend/firebase-service-account.json
 firebase-debug.log
 frontend/.env
+frontend/.env.local
+frontend/.env.production
 .env
+*.env
 
 # Editor and OS files
 .vscode/*.log

@@ -74,6 +74,8 @@ def _firebase_client():
 db = _firebase_client()
 app = FastAPI(title="TCT Lab Portal Backend")
 cors_origins = [origin.strip() for origin in os.getenv("TCT_CORS_ORIGINS", "").split(",") if origin.strip()]
+if "*" in cors_origins:
+    raise RuntimeError("TCT_CORS_ORIGINS cannot include '*' when credentialed cookies are enabled")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=cors_origins,
@@ -89,6 +91,11 @@ if not SESSION_SECRET:
 serializer = URLSafeTimedSerializer(SESSION_SECRET)
 SESSION_MAX_AGE = int(os.getenv("TCT_SESSION_MAX_AGE", str(60 * 60 * 8)))
 SECURE_COOKIE = os.getenv("TCT_SECURE_COOKIE", "true").lower() == "true"
+COOKIE_SAMESITE = os.getenv("TCT_COOKIE_SAMESITE", "lax").lower()
+if COOKIE_SAMESITE not in {"lax", "strict", "none"}:
+    raise RuntimeError("TCT_COOKIE_SAMESITE must be one of: lax, strict, none")
+if COOKIE_SAMESITE == "none" and not SECURE_COOKIE:
+    raise RuntimeError("TCT_COOKIE_SAMESITE=none requires TCT_SECURE_COOKIE=true")
 BOOTSTRAP_USERNAME = os.getenv("TCT_BOOTSTRAP_USERNAME", "@vivekshukla26")
 BOOTSTRAP_PASSWORD_HASH = os.getenv("TCT_BOOTSTRAP_PASSWORD_HASH")
 LOGIN_ATTEMPT_WINDOW = 60
@@ -219,13 +226,13 @@ def set_session_cookie(response: Response, username: str):
         max_age=SESSION_MAX_AGE,
         httponly=True,
         secure=SECURE_COOKIE,
-        samesite="lax",
+        samesite=COOKIE_SAMESITE,
         path="/",
     )
 
 
 def clear_session_cookie(response: Response):
-    response.delete_cookie(SESSION_COOKIE, path="/", secure=SECURE_COOKIE, httponly=True, samesite="lax")
+    response.delete_cookie(SESSION_COOKIE, path="/", secure=SECURE_COOKIE, httponly=True, samesite=COOKIE_SAMESITE)
 
 
 ensure_bootstrap_admin()

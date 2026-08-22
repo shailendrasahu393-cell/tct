@@ -43,6 +43,7 @@ TCT_BOOTSTRAP_USERNAME=@vivekshukla26
 TCT_BOOTSTRAP_PASSWORD_HASH=your-argon2-hash
 TCT_SESSION_MAX_AGE=28800
 TCT_SECURE_COOKIE=true
+TCT_COOKIE_SAMESITE=lax
 TCT_CORS_ORIGINS=https://your-frontend-domain.web.app
 ```
 
@@ -96,16 +97,20 @@ This is correct for the current architecture because Firebase Admin SDK calls
 from FastAPI bypass client rules. Authorization is enforced by FastAPI's
 session and role dependencies. Never put the service-account key in `frontend`.
 
-## 5. Netlify deployment
+## 5. Render deployment
 
-This repository includes `netlify.toml` and a Netlify Function wrapper for the
-FastAPI app. Netlify serves the Vite build and proxies `/api/*` to that
-function, so the frontend uses the same-origin `/api` URL automatically.
+Deploy the backend and frontend as separate Render services. This repository
+includes `render.yaml` for a Python FastAPI web service and a Vite static site.
 
-1. Push this repository to GitHub and import it into Netlify.
-2. Netlify will read `netlify.toml`; no manual build command is required.
-3. Add these variables under Netlify Site configuration > Environment variables
-  > Production:
+Backend service settings:
+
+```text
+Root directory: backend
+Build command: pip install -r requirements.txt
+Start command: uvicorn main:app --host 0.0.0.0 --port $PORT
+```
+
+Backend environment variables:
 
 ```text
 FIREBASE_PROJECT_ID=tctlab
@@ -115,13 +120,32 @@ TCT_BOOTSTRAP_USERNAME=@vivekshukla26
 TCT_BOOTSTRAP_PASSWORD_HASH=<Argon2 hash>
 TCT_SESSION_MAX_AGE=28800
 TCT_SECURE_COOKIE=true
-TCT_CORS_ORIGINS=https://<your-site>.netlify.app
+TCT_COOKIE_SAMESITE=none
+TCT_CORS_ORIGINS=https://<your-frontend-service>.onrender.com
 ```
 
-`FIREBASE_SERVICE_ACCOUNT_JSON` is parsed as JSON by the function. Paste the
-complete downloaded service-account JSON into the Netlify variable; never put
-it in Git or in a `VITE_*` variable. `TCT_CORS_ORIGINS` must be the exact final
-Netlify URL. No `VITE_API_BASE_URL` is needed because `/api` is same-origin.
+Frontend static site settings:
+
+```text
+Root directory: frontend
+Build command: npm ci && npm run build
+Publish directory: dist
+```
+
+Frontend environment variables:
+
+```text
+VITE_API_BASE_URL=https://<your-backend-service>.onrender.com
+VITE_API_TIMEOUT_MS=10000
+```
+
+`FIREBASE_SERVICE_ACCOUNT_JSON` is parsed as JSON by the backend. Paste the
+complete downloaded service-account JSON into the Render backend environment;
+never put it in Git or in a `VITE_*` variable. `TCT_CORS_ORIGINS` must be the
+exact final frontend URL. Do not use `*` because the app authenticates with an
+HttpOnly credentialed cookie. Use `TCT_COOKIE_SAMESITE=none` with
+`TCT_SECURE_COOKIE=true` when the frontend and backend are on different HTTPS
+origins, such as separate Render services.
 
 Password changes use the authenticated username and current password. Normal
 admin password hashes are stored in Firestore and replaced after the old
@@ -129,11 +153,11 @@ password is verified. The super-admin hash is read only from
 `TCT_BOOTSTRAP_PASSWORD_HASH`; the super-admin password cannot be changed from
 the UI. Update that environment variable and redeploy when it must change.
 
-4. Trigger a deploy. Then verify:
+After both services deploy, verify:
 
 ```text
-https://<your-site>.netlify.app/
-https://<your-site>.netlify.app/api/
+https://<your-frontend-service>.onrender.com/
+https://<your-backend-service>.onrender.com/
 ```
 
 The second URL should return `{"message":"TCT Lab Portal Backend is running"}`.
@@ -148,11 +172,10 @@ cd backend
 uvicorn main:app --host 127.0.0.1 --port 8000
 ```
 
-For production, deploy the `backend` directory to a Python host that supports
-FastAPI (Cloud Run, Render, Railway, or an equivalent service). Configure all
-values from `backend/.env` as platform secrets/environment variables, upload
-the service-account JSON through the platform secret manager, and expose the
-API through HTTPS. Set `TCT_CORS_ORIGINS` to the exact deployed frontend URL.
+For Render production, the backend must listen on `0.0.0.0` and use Render's
+dynamic `$PORT`. Configure all values from `backend/.env` as platform
+secrets/environment variables and expose the API through HTTPS. Set
+`TCT_CORS_ORIGINS` to the exact deployed frontend URL.
 
 The backend must have:
 
@@ -163,6 +186,7 @@ The backend must have:
 - `TCT_SESSION_SECRET`
 - `TCT_CORS_ORIGINS`
 - `TCT_SECURE_COOKIE=true`
+- `TCT_COOKIE_SAMESITE=none` for separate frontend/backend HTTPS origins
 
 ## 7. Deploy the frontend separately
 
@@ -181,9 +205,14 @@ npm ci
 npm run build
 ```
 
-The generated `frontend/dist` directory can be deployed to Firebase Hosting or
-any static HTTPS host. For Firebase Hosting, initialize Hosting once, choose
-`frontend/dist` as the public directory, and configure it as a single-page app:
+The generated `frontend/dist` directory is what Render serves. The `render.yaml`
+static-site route rewrites client-side routes to `/index.html`, so React Router
+paths such as `/admin/login` and `/lab/:labId` work after refresh.
+
+The Firebase Hosting config is retained for Firestore project artifacts and as
+an optional static-hosting fallback. For Firebase Hosting, initialize Hosting
+once, choose `frontend/dist` as the public directory, and configure it as a
+single-page app:
 
 ```powershell
 firebase init hosting
@@ -212,9 +241,5 @@ is over. After a verified backup, it is no longer used at runtime and may be
 archived or removed. Keep `migrate_sqlite_to_firestore.py` for disaster recovery
 or future data imports.
 
-The repository intentionally keeps only these Firebase deployment artifacts:
+The repository intentionally keeps these Firebase deployment artifacts:
 `firebase.json`, `firestore.rules`, and `firestore.indexes.json`.
-
-Netlify Functions are serverless. For heavy or long-running backend traffic,
-Cloud Run remains the better FastAPI host; the Netlify setup above is suitable
-for this portal's normal CRUD and authentication traffic.
